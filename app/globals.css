@@ -1,0 +1,101 @@
+@import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,600;0,6..96,700;1,6..96,400&family=Karla:wght@400;500;700&family=Roboto+Mono:wght@400;500&family=Bebas+Neue&family=Space+Grotesk:wght@400;500;700&family=DM+Serif+Display&family=Caveat:wght@600&display=swap');
+
+:root {
+  --tinta: #0D1614;
+  --verde: #16302B;
+  --verde2: #1F423B;
+  --linea: #2C544B;
+  --bronce: #C79A4B;
+  --bronce2: #E3C489;
+  --hueso: #ECE7DB;
+  --tiza: #8FA39D;
+  --vermut: #A0463A;
+  --display: 'Bodoni Moda', Didot, Georgia, serif;
+  --texto: 'Karla', 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'Roboto Mono', ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--texto);
+  background: var(--tinta);
+  color: var(--hueso);
+  -webkit-font-smoothing: antialiased;
+}
+
+button { font-family: var(--texto); cursor: pointer; }
+input, select, textarea { font-family: var(--texto); }
+:focus-visible { outline: 2px solid var(--bronce2); outline-offset: 2px; }
+
+/* ── estructura ─────────────────────────────────────────── */
+.b-wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+.b-top { border-bottom: 1px solid var(--linea); background: var(--verde); }
+.b-topin { max-width: 1180px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.b-marca { font-family: var(--display); font-size: 24px; letter-spacing: .22em; color: var(--bronce2); line-height: 1; }
+.b-marca small { display: block; font-family: var(--texto); font-size: 9px; letter-spacing: .18em; color: var(--tiza); margin-top: 5px; text-transform: uppercase; }
+.b-spacer { flex: 1; }
+.b-quien { font-size: 12px; color: var(--tiza); }
+.b-quien b { color: var(--hueso); font-weight: 500; }
+
+/* ── controles ──────────────────────────────────────────── */
+.b-btn { border: 1px solid var(--linea); background: transparent; color: var(--hueso); padding: 9px 15px; border-radius: 2px; font-size: 13px; transition: .15s; }
+.b-btn:hover { border-color: var(--bronce); color: var(--bronce2); }
+.b-btn.oro { background: var(--bronce); border-color: var(--bronce); color: #1A1206; font-weight: 700; }
+.b-btn.oro:hover { background: var(--bronce2); }
+.b-btn.mini { padding: 5px 9px; font-size: 11px; }
+.b-btn.rojo:hover { border-color: var(--vermut); color: #E39184; }
+.b-btn:disabled { opacity: .4; cursor: default; }
+
+.b-campo { display: block; margin-bottom: 12px; }
+.b-campo > span { display: block; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--tiza); margin-bottom: 5px; }
+.b-in { width: 100%; background: var(--tinta); border: 1px solid var(--linea); color: var(--hueso); padding: 10px 12px; border-radius: 2px; font-size: 14px; }
+.b-in:focus { border-color: var(--bronce); }
+.b-in.num { font-family: var(--mono); }
+
+/* ── bloques ────────────────────────────────────────────── */
+.b-panel { background: var(--verde); border: 1px solid var(--linea); border-radius: 3px; padding: 20px; }
+.b-card { background: var(--verde); border: 1px solid var(--linea); border-radius: 3px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.b-h1 { font-family: var(--display); font-size: 40px; font-weight: 400; margin: 0 0 6px; line-height: 1.05; }
+.b-h2 { font-family: var(--display); font-size: 24px; font-weight: 400; margin: 0; }
+.b-eyebrow { font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--bronce); margin: 0 0 10px; }
+.b-sub { color: var(--tiza); font-size: 14px; line-height: 1.6; margin: 0; }
+.b-nota { font-size: 11.5px; color: var(--tiza); line-height: 1.5; }
+.b-slug { font-family: var(--mono); font-size: 11px; color: var(--tiza); word-break: break-all; }
+.b-chip { display: inline-block; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; padding: 3px 8px; border: 1px solid var(--linea); border-radius: 99px; color: var(--tiza); }
+.b-chip.on { color: var(--bronce2); border-color: var(--bronce); }
+.b-chip.off { color: #E39184; border-color: var(--vermut); }
+.b-alerta { border: 1px solid var(--linea); border-left: 3px solid var(--bronce); padding: 12px 14px; font-size: 12.5px; color: var(--tiza); line-height: 1.6; border-radius: 2px; }
+.b-error { color: #E39184; font-size: 12.5px; margin: 0 0 12px; }
+
+.b-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--linea); margin-bottom: 20px; flex-wrap: wrap; }
+.b-tab { background: none; border: 0; border-bottom: 2px solid transparent; color: var(--tiza); padding: 10px 14px; font-size: 13px; }
+.b-tab.sel { color: var(--bronce2); border-bottom-color: var(--bronce); }
+
+.b-fila { display: flex; gap: 10px; align-items: flex-start; padding: 11px 0; border-bottom: 1px solid rgba(44,84,75,.5); }
+.b-fila:last-child { border-bottom: 0; }
+.b-guardado { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--tiza); }
+.b-guardado.act { color: var(--bronce2); }
+.b-guardado.mal { color: #E39184; }
+
+.b-tema { border: 1px solid var(--linea); border-radius: 3px; padding: 12px; text-align: left; background: transparent; display: grid; gap: 8px; }
+.b-tema.sel { border-color: var(--bronce); box-shadow: inset 0 0 0 1px var(--bronce); }
+.b-swatch { height: 44px; border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 15px; }
+
+/* ── la carta, pintada con las variables del tema ───────── */
+.b-menu { background: var(--m-bg); color: var(--m-tinta); font-family: var(--m-texto); }
+.b-menu .b-cat { font-family: var(--m-display); font-size: var(--m-cat-size); letter-spacing: var(--m-cat-track); text-transform: uppercase; color: var(--m-acento); border-bottom: 1px solid var(--m-linea); padding-bottom: 6px; margin: 28px 0 14px; text-align: var(--m-align); font-weight: var(--m-cat-peso); }
+.b-linea { display: flex; align-items: baseline; gap: 8px; margin: 0 0 10px; }
+.b-linea .n { font-family: var(--m-display); font-size: var(--m-item-size); font-weight: var(--m-item-peso); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.b-linea .p { font-family: var(--m-precio); font-size: 14px; font-weight: 500; white-space: nowrap; color: var(--m-acento); }
+.b-puntos { flex: 1; border-bottom: 1px dotted var(--m-linea); transform: translateY(-4px); min-width: 12px; }
+.b-puntos.sin { border-bottom-color: transparent; }
+.b-desc { font-size: 12.5px; color: var(--m-suave); margin: -4px 0 16px; line-height: 1.5; max-width: 44ch; }
+.b-agotado .n, .b-agotado .p { opacity: .42; text-decoration: line-through; }
+
+.b-fono { width: 330px; max-width: 100%; border: 9px solid #0A100F; border-radius: 30px; overflow: hidden; box-shadow: 0 18px 40px rgba(0,0,0,.45); }
+.b-scroll { height: 560px; overflow-y: auto; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
