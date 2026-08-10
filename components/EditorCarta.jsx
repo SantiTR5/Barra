@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase, plata } from "@/lib/supabase";
 import { TEMAS } from "@/lib/temas";
 import Carta from "./Carta";
+import PlacaQR from "./PlacaQR";
 
 /* Guarda recién cuando la persona deja de escribir.
    Sin esto, cada tecla sería un pedido a la base. */
@@ -155,7 +156,7 @@ export default function EditorCarta({ local, esAdmin, volver }) {
       </div>
 
       <div className="b-tabs">
-        {[["carta", "Carta"], ["diseno", "Diseño"], ["local", "Datos del local"], ["historial", "Historial"]].map(([k, l]) => (
+        {[["carta", "Carta"], ["diseno", "Diseño"], ["qr", "QR y cartelería"], ["local", "Datos del local"], ["historial", "Historial"]].map(([k, l]) => (
           <button key={k} className={`b-tab ${tab === k ? "sel" : ""}`} onClick={() => setTab(k)}>{l}</button>
         ))}
       </div>
@@ -239,6 +240,8 @@ export default function EditorCarta({ local, esAdmin, volver }) {
               </div>
             </div>
           )}
+
+          {!cargando && tab === "qr" && <PlacaQR local={datos} />}
 
           {!cargando && tab === "local" && (
             <div className="b-panel">
