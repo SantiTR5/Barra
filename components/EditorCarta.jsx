@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { plata } from "@/lib/formato";
 import { IDIOMAS, BASE, CLAVES, texto } from "@/lib/idiomas";
-import { TEMAS } from "@/lib/temas";
+import { subirLogo, LIMITE_KB } from "@/lib/logo-archivo";
+import { PALETAS_CARTA, TIPOGRAFIAS, CLAVES_PALETA_CARTA, CLAVES_TIPOGRAFIA, estiloDe } from "@/lib/estilo-carta";
 import Carta from "./Carta";
 import PlacaQR from "./PlacaQR";
 
@@ -40,6 +41,8 @@ export default function EditorCarta({ local, esAdmin, volver }) {
   const [cargando, setCargando] = useState(true);
   const [nuevaCat, setNuevaCat] = useState("");
   const [editando, setEditando] = useState(BASE);   // idioma que se está escribiendo
+  const [subiendo, setSubiendo] = useState(false);
+  const [errLogo, setErrLogo] = useState("");
 
   const diferir = useGuardadoDiferido(setEstado);
 
@@ -90,6 +93,26 @@ export default function EditorCarta({ local, esAdmin, volver }) {
       `trad:${tabla}:${fila.id}:${campo}`,
       () => supabase.from(tabla).update({ traducciones }).eq("id", fila.id)
     );
+  };
+
+  const cambiarLogo = async (archivo) => {
+    setErrLogo("");
+    if (!archivo) return;
+    setSubiendo(true);
+    const r = await subirLogo(local.id, archivo);
+    if (r.error) {
+      setErrLogo(r.error);
+    } else {
+      setDatos((d) => ({ ...d, logo_url: r.url }));
+      await supabase.from("locales").update({ logo_url: r.url }).eq("id", local.id);
+    }
+    setSubiendo(false);
+  };
+
+  const quitarLogo = async () => {
+    setErrLogo("");
+    setDatos((d) => ({ ...d, logo_url: null }));
+    await supabase.from("locales").update({ logo_url: null }).eq("id", local.id);
   };
 
   const cambiarLocal = (campo, valor, inmediato) => {
@@ -165,7 +188,7 @@ export default function EditorCarta({ local, esAdmin, volver }) {
   /* ── vista previa: se arma con la misma forma que devuelve la base ── */
   const vistaPrevia = {
     nombre: datos.nombre, zona: datos.zona, direccion: datos.direccion,
-    lema: datos.lema, tema: datos.tema, idiomas,
+    lema: datos.lema, logo: datos.logo_url, paleta: datos.paleta, tipografia: datos.tipografia, idiomas,
     categorias: cats.map((c) => ({
       nombre: c.nombre,
       t: c.traducciones || {},
@@ -219,8 +242,10 @@ export default function EditorCarta({ local, esAdmin, volver }) {
                   ))}
                   {editando !== BASE && (
                     <span className="b-nota" style={{ flex: "1 1 100%", margin: 0 }}>
-                      Lo que dejes vacío se muestra en español. A los nombres de los platos conviene no
-                      tocarlos: “Provoleta” se explica en la descripción, no se cambia por otra palabra.
+                      Escribí acá las categorías y las descripciones en {IDIOMAS[editando].nombre.toLowerCase()}.
+                      Los nombres de los platos son los mismos en todos los idiomas y no se editan desde acá:
+                      “Provoleta” se explica en la descripción, no se cambia por otra palabra. Lo que dejes
+                      vacío se muestra en español.
                     </span>
                   )}
                 </div>
@@ -240,18 +265,42 @@ export default function EditorCarta({ local, esAdmin, volver }) {
                 <div className="b-panel" key={cat.id}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
                     <input className="b-in" style={{ flex: "1 1 180px", fontFamily: "var(--display)", fontSize: 18 }}
-                      value={cat.nombre} onChange={(e) => renombrarCat(cat.id, e.target.value)} />
+                      value={editando === BASE ? cat.nombre : (cat.traducciones?.[editando]?.nombre || "")}
+                      placeholder={editando === BASE ? "Nombre de la categoría" : cat.nombre}
+                      onChange={(e) => editando === BASE
+                        ? renombrarCat(cat.id, e.target.value)
+                        : cambiarTraduccion("categorias", cat, "nombre", e.target.value)} />
                     <button className="b-btn mini rojo" onClick={() => borrarCat(cat)}>Borrar</button>
                   </div>
 
                   {prods.filter((p) => p.categoria_id === cat.id).map((it) => (
                     <div className="b-fila" key={it.id}>
                       <div style={{ flex: "1 1 auto", minWidth: 0, display: "grid", gap: 6 }}>
-                        <input className="b-in" value={it.nombre} placeholder="Nombre del producto"
-                          onChange={(e) => cambiarProd(it.id, "nombre", e.target.value)} />
-                        <input className="b-in" style={{ fontSize: 12.5 }} value={it.descripcion || ""}
-                          placeholder="Descripción (opcional)"
-                          onChange={(e) => cambiarProd(it.id, "descripcion", e.target.value)} />
+                        {editando === BASE ? (
+                          <input className="b-in" value={it.nombre} placeholder="Nombre del producto"
+                            onChange={(e) => cambiarProd(it.id, "nombre", e.target.value)} />
+                        ) : (
+                          /* El nombre del plato es uno solo para los tres idiomas.
+                             Se muestra para saber de qué producto es la descripción
+                             de abajo, pero no se edita ni se traduce. */
+                          <div className="b-in" style={{ opacity: 0.65, background: "transparent",
+                            borderStyle: "dashed", display: "flex", alignItems: "center",
+                            justifyContent: "space-between", gap: 8 }}>
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {it.nombre}
+                            </span>
+                            <span style={{ fontSize: 9, letterSpacing: ".12em", textTransform: "uppercase",
+                              color: "var(--tiza)", flex: "0 0 auto" }}>igual en todos</span>
+                          </div>
+                        )}
+                        <input className="b-in" style={{ fontSize: 12.5 }}
+                          value={editando === BASE ? (it.descripcion || "") : (it.traducciones?.[editando]?.desc || "")}
+                          placeholder={editando === BASE
+                            ? "Descripción (opcional)"
+                            : (it.descripcion || `Descripción en ${IDIOMAS[editando].nombre.toLowerCase()}`)}
+                          onChange={(e) => editando === BASE
+                            ? cambiarProd(it.id, "descripcion", e.target.value)
+                            : cambiarTraduccion("productos", it, "desc", e.target.value)} />
                       </div>
                       <div style={{ display: "grid", gap: 6, flex: "0 0 128px" }}>
                         <input className="b-in num" type="number" min="0" value={it.precio}
@@ -280,25 +329,62 @@ export default function EditorCarta({ local, esAdmin, volver }) {
           )}
 
           {!cargando && tab === "diseno" && (
-            <div className="b-panel">
-              <p className="b-eyebrow">Estilo de la carta</p>
-              <p className="b-sub" style={{ marginBottom: 16 }}>
-                Elegí uno y mirá el celular de la derecha. Los productos y precios son siempre los mismos.
-              </p>
-              <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fill,minmax(190px,1fr))" }}>
-                {Object.entries(TEMAS).map(([k, t]) => (
-                  <button key={k} className={`b-tema ${datos.tema === k ? "sel" : ""}`}
-                    onClick={() => cambiarLocal("tema", k, true)}>
-                    <span className="b-swatch" style={{ background: t.v["--m-bg"], color: t.v["--m-tinta"], fontFamily: t.v["--m-display"] }}>
-                      Aa <span style={{ color: t.v["--m-acento"], marginLeft: 8, fontFamily: t.v["--m-precio"], fontSize: 12 }}>$12.500</span>
-                    </span>
-                    <span style={{ fontSize: 14, color: datos.tema === k ? "var(--bronce2)" : "var(--hueso)" }}>{t.nombre}</span>
-                    <span style={{ fontSize: 11.5, color: "var(--tiza)", lineHeight: 1.45 }}>{t.para}</span>
-                  </button>
-                ))}
+            <div style={{ display: "grid", gap: 14 }}>
+
+              <div className="b-panel">
+                <p className="b-eyebrow">Colores de la carta</p>
+                <p className="b-sub" style={{ marginBottom: 16 }}>
+                  El fondo, el color del texto y el de los acentos. Mirá el celular de la derecha.
+                </p>
+                <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))" }}>
+                  {CLAVES_PALETA_CARTA.map((k) => {
+                    const t = PALETAS_CARTA[k];
+                    const sel = (datos.paleta || "papel") === k;
+                    return (
+                      <button key={k} className={`b-tema ${sel ? "sel" : ""}`}
+                        onClick={() => cambiarLocal("paleta", k, true)}>
+                        <span className="b-swatch" style={{ background: t.v["--m-bg"], color: t.v["--m-tinta"] }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13 }}>
+                            Aa
+                            <span style={{ width: 22, height: 4, borderRadius: 2, background: t.v["--m-acento"] }} />
+                            <span style={{ color: t.v["--m-suave"], fontSize: 11 }}>$12.500</span>
+                          </span>
+                        </span>
+                        <span style={{ fontSize: 14, color: sel ? "var(--bronce2)" : "var(--hueso)" }}>{t.nombre}</span>
+                        <span style={{ fontSize: 11.5, color: "var(--tiza)", lineHeight: 1.45 }}>{t.para}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div style={{ marginTop: 28, borderTop: "1px solid var(--linea)", paddingTop: 22 }}>
+              <div className="b-panel">
+                <p className="b-eyebrow">Tipografía de la carta</p>
+                <p className="b-sub" style={{ marginBottom: 16 }}>
+                  Las letras y cómo se arma la portada. Se elige aparte de los colores: un bodegón puede
+                  tener letras de cartel, y una cervecería puede ir en claro.
+                </p>
+                <div style={{ display: "grid", gap: 10, gridTemplateColumns: "repeat(auto-fill,minmax(180px,1fr))" }}>
+                  {CLAVES_TIPOGRAFIA.map((k) => {
+                    const t = TIPOGRAFIAS[k];
+                    const sel = (datos.tipografia || "clasica") === k;
+                    const previa = estiloDe(datos.paleta, k).v;
+                    return (
+                      <button key={k} className={`b-tema ${sel ? "sel" : ""}`}
+                        onClick={() => cambiarLocal("tipografia", k, true)}>
+                        <span className="b-swatch" style={{ background: previa["--m-bg"], color: previa["--m-tinta"],
+                          fontFamily: previa["--m-display"], fontSize: 17 }}>
+                          Doble cheddar
+                        </span>
+                        <span style={{ fontSize: 14, color: sel ? "var(--bronce2)" : "var(--hueso)" }}>{t.nombre}</span>
+                        <span style={{ fontSize: 11.5, color: "var(--tiza)", lineHeight: 1.45 }}>{t.para}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="b-panel">
                 <p className="b-eyebrow">Idiomas de la carta</p>
                 <p className="b-sub" style={{ marginBottom: 14 }}>
                   Marcá los que quieras ofrecer. Si hay más de uno, el cliente ve unos botones arriba de la
@@ -318,11 +404,11 @@ export default function EditorCarta({ local, esAdmin, volver }) {
                   ))}
                 </div>
                 <p className="b-nota" style={{ marginTop: 14 }}>
-                  El español no se puede desmarcar: es la base. Lo que no traduzcas se muestra en español,
-                  así que podés habilitar inglés y traducir solo las descripciones que valga la pena.
+                  El español no se puede desmarcar: es la base. Lo que no traduzcas se muestra en español.
                   Las traducciones se escriben en la solapa Carta.
                 </p>
               </div>
+
             </div>
           )}
 
@@ -336,7 +422,36 @@ export default function EditorCarta({ local, esAdmin, volver }) {
                   <input className="b-in" value={datos[k] || ""} onChange={(e) => cambiarLocal(k, e.target.value)} />
                 </label>
               ))}
-              <p className="b-nota">
+              <div style={{ marginTop: 22, borderTop: "1px solid var(--linea)", paddingTop: 20 }}>
+                <p className="b-eyebrow">Logo del local</p>
+                <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap" }}>
+                  <div style={{ width: 74, height: 74, borderRadius: 3, border: "1px solid var(--linea)",
+                    background: "#ECE7DB", display: "grid", placeItems: "center", flex: "0 0 auto" }}>
+                    {datos.logo_url
+                      ? <img src={datos.logo_url} alt="Logo" style={{ maxWidth: 62, maxHeight: 62, objectFit: "contain" }} />
+                      : <span style={{ fontSize: 10, color: "#8A9491", textAlign: "center", lineHeight: 1.3 }}>sin<br />logo</span>}
+                  </div>
+                  <div style={{ flex: "1 1 200px", display: "grid", gap: 8 }}>
+                    <input className="b-in" type="file" accept="image/png" disabled={subiendo}
+                      style={{ padding: 8, fontSize: 12 }}
+                      onChange={(e) => cambiarLogo(e.target.files?.[0] || null)} />
+                    {datos.logo_url && (
+                      <button className="b-btn mini rojo" style={{ justifySelf: "start" }} onClick={quitarLogo}>
+                        Quitar el logo
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {subiendo && <p className="b-nota" style={{ marginTop: 10 }}>Subiendo…</p>}
+                {errLogo && <p className="b-error" style={{ marginTop: 10 }}>{errLogo}</p>}
+                <p className="b-nota" style={{ marginTop: 10 }}>
+                  Solo PNG, hasta {LIMITE_KB} KB. Aparece chico en la esquina de arriba a la derecha de la
+                  carta, así que un logo simple se lee mejor que uno con mucho detalle. Con fondo
+                  transparente queda bien sobre cualquier color.
+                </p>
+              </div>
+
+              <p className="b-nota" style={{ marginTop: 18 }}>
                 El código del QR ({datos.codigo}) no se puede cambiar. Es lo que está impreso en los acrílicos de las mesas.
               </p>
             </div>

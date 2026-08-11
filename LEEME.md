@@ -80,6 +80,10 @@ NEXT_PUBLIC_SUPABASE_URL=https://tuproyecto.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...
 ```
 
+> Esa clave puede verse desde el navegador sin riesgo. La seguridad no está en
+> esconderla: está en las reglas de la base de datos. Sin sesión iniciada, esa
+> clave no abre nada.
+
 Guardá y cerrá.
 
 > Esa clave puede verse desde el navegador sin riesgo. La seguridad no está en

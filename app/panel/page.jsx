@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase, direccionar } from "@/lib/supabase";
 import EditorCarta from "@/components/EditorCarta";
 import { MARCA, BAJADA } from "@/lib/marca";
+import { subirLogo, LIMITE_KB } from "@/lib/logo-archivo";
 
 /* ── acceso ──────────────────────────────────────────────── */
 function Acceso() {
@@ -56,17 +57,39 @@ function Acceso() {
 function PanelPlataforma({ locales, recargar, abrir }) {
   const [alta, setAlta] = useState(null);
   const [err, setErr] = useState("");
+  const [creando, setCreando] = useState(false);
 
   const crear = async () => {
     const nombre = (alta.nombre || "").trim();
     if (!nombre) return;
     setErr("");
-    const { error } = await supabase.from("locales").insert({
+    setCreando(true);
+
+    const { data, error } = await supabase.from("locales").insert({
       nombre,
       slug: direccionar(nombre),
       zona: alta.zona || "",
-    });
-    if (error) return setErr(error.message.includes("duplicate") ? "Ya existe un local con esa dirección." : error.message);
+    }).select().single();
+
+    if (error) {
+      setCreando(false);
+      return setErr(error.message.includes("duplicate") ? "Ya existe un local con esa dirección." : error.message);
+    }
+
+    // El logo se sube después de crear el local: recién ahí existe la
+    // carpeta donde guardarlo y el permiso que la protege.
+    if (alta.logo && data) {
+      const r = await subirLogo(data.id, alta.logo);
+      if (r.error) {
+        setCreando(false);
+        setAlta(null);
+        recargar();
+        return setErr(`El local se creó, pero el logo no se pudo subir: ${r.error} Podés cargarlo después desde “Datos del local”.`);
+      }
+      await supabase.from("locales").update({ logo_url: r.url }).eq("id", data.id);
+    }
+
+    setCreando(false);
     setAlta(null);
     recargar();
   };
@@ -103,6 +126,7 @@ function PanelPlataforma({ locales, recargar, abrir }) {
               <p className="b-slug" style={{ marginTop: 6 }}>/q/{l.codigo}</p>
             </div>
             <p className="b-sub" style={{ fontSize: 12.5 }}>{l.zona || "Sin zona"}</p>
+
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: "auto" }}>
               <button className="b-btn mini oro" onClick={() => abrir(l)}>Editar carta</button>
               <a className="b-btn mini" href={`/q/${l.codigo}`} target="_blank" rel="noreferrer">Ver menú</a>
@@ -121,15 +145,34 @@ function PanelPlataforma({ locales, recargar, abrir }) {
             <label className="b-campo"><span>Zona</span>
               <input className="b-in" value={alta.zona} placeholder="Morón, Haedo, Castelar…"
                 onChange={(e) => setAlta({ ...alta, zona: e.target.value })} /></label>
+
+            <label className="b-campo">
+              <span>Logo del local · PNG (opcional)</span>
+              <input className="b-in" type="file" accept="image/png"
+                style={{ padding: 8, fontSize: 12 }}
+                onChange={(e) => setAlta({ ...alta, logo: e.target.files?.[0] || null })} />
+            </label>
+            {alta.logo && (
+              <p className="b-nota" style={{ marginTop: -6 }}>
+                {alta.logo.name} · {Math.round(alta.logo.size / 1024)} KB
+              </p>
+            )}
+            <p className="b-nota" style={{ marginTop: -4 }}>
+              Solo PNG, hasta {LIMITE_KB} KB. Con fondo transparente queda mejor sobre cualquier carta.
+              Si no cargás ninguno, la carta sale sin logo.
+            </p>
+
             <p className="b-slug">/{direccionar(alta.nombre) || "…"}</p>
             <div style={{ display: "flex", gap: 8 }}>
-              <button className="b-btn oro" onClick={crear}>Crear local</button>
-              <button className="b-btn" onClick={() => setAlta(null)}>Cancelar</button>
+              <button className="b-btn oro" onClick={crear} disabled={creando}>
+                {creando ? "Creando…" : "Crear local"}
+              </button>
+              <button className="b-btn" onClick={() => setAlta(null)} disabled={creando}>Cancelar</button>
             </div>
           </div>
         ) : (
           <button className="b-card" style={{ alignItems: "center", justifyContent: "center", color: "var(--tiza)", fontSize: 14, borderStyle: "dashed", minHeight: 180 }}
-            onClick={() => setAlta({ nombre: "", zona: "" })}>
+            onClick={() => setAlta({ nombre: "", zona: "", logo: null })}>
             + Dar de alta un local
           </button>
         )}

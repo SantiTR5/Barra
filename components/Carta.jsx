@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { temaDe } from "@/lib/temas";
+import { estiloDe } from "@/lib/estilo-carta";
 import { plata } from "@/lib/formato";
 import { MARCA } from "@/lib/marca";
 import { IDIOMAS, BASE, texto, idiomaDelCelular } from "@/lib/idiomas";
@@ -108,12 +108,22 @@ export default function Carta({ carta, enFono }) {
   }, [carta?.nombre, idiomas.join(",")]);
 
   if (!carta) return null;
-  const tema = temaDe(carta.tema);
+  const tema = estiloDe(carta.paleta, carta.tipografia);
   const cats = carta.categorias || [];
   const vocab = IDIOMAS[idioma] || IDIOMAS[BASE];
 
   const cuerpo = (
-    <div className="b-menu" style={{ ...tema.v, padding: "26px 22px 34px", minHeight: "100%" }}>
+    <div className="b-menu" style={{ ...tema.v, padding: "22px 22px 34px", minHeight: "100%" }}>
+      {/* El logo va arriba a la derecha, pero en su propia fila: si lo
+          dejáramos flotando encima, un nombre largo y centrado se le
+          metería abajo. Así puede ser grande sin pisar nada. */}
+      {carta.logo && (
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+          <img src={carta.logo} alt=""
+            style={{ width: 86, height: 86, objectFit: "contain", display: "block" }} />
+        </div>
+      )}
+
       <Portada carta={carta} tema={tema} />
 
       <SelectorIdioma idiomas={idiomas} actual={idioma} elegir={setIdioma} />
@@ -132,7 +142,9 @@ export default function Carta({ carta, enFono }) {
             return (
               <div key={j}>
                 <div className={`b-linea ${it.disponible ? "" : "b-agotado"}`}>
-                  <span className="n">{texto(it, "nombre", idioma)}</span>
+                  {/* El nombre del plato no se traduce nunca: es el mismo en las
+                      tres cartas. Lo que cambia es la descripción de abajo. */}
+                  <span className="n">{it.nombre}</span>
                   <span className={`b-puntos ${tema.puntos ? "" : "sin"}`} />
                   <span className="p">{it.disponible ? plata(it.precio) : vocab.sinStock}</span>
                 </div>
