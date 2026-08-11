@@ -1,7 +1,8 @@
 import "./globals.css";
+import { MARCA, BAJADA } from "@/lib/marca";
 
 export const metadata = {
-  title: "BARRA · Menús digitales",
+  title: `${MARCA} · ${BAJADA}`,
   description: "Cartas digitales para bares y restaurantes.",
 };
 

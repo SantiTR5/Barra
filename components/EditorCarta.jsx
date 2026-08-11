@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { supabase, plata } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase";
+import { plata } from "@/lib/formato";
+import { IDIOMAS, BASE, CLAVES, texto } from "@/lib/idiomas";
 import { TEMAS } from "@/lib/temas";
 import Carta from "./Carta";
 import PlacaQR from "./PlacaQR";
@@ -37,6 +39,7 @@ export default function EditorCarta({ local, esAdmin, volver }) {
   const [estado, setEstado] = useState("al-dia");
   const [cargando, setCargando] = useState(true);
   const [nuevaCat, setNuevaCat] = useState("");
+  const [editando, setEditando] = useState(BASE);   // idioma que se está escribiendo
 
   const diferir = useGuardadoDiferido(setEstado);
 
@@ -56,6 +59,39 @@ export default function EditorCarta({ local, esAdmin, volver }) {
   }, [local.id]);
 
   /* ── acciones sobre el local ───────────────────────────── */
+  const idiomas = datos.idiomas?.length ? datos.idiomas : [BASE];
+
+  /* Habilitar o deshabilitar un idioma. El español no se puede sacar:
+     es la base sobre la que caen las traducciones que falten. */
+  const cambiarIdioma = (clave) => {
+    if (clave === BASE) return;
+    const siguiente = idiomas.includes(clave)
+      ? idiomas.filter((x) => x !== clave)
+      : [...CLAVES.filter((k) => idiomas.includes(k) || k === clave)];
+    setDatos((d) => ({ ...d, idiomas: siguiente }));
+    if (!siguiente.includes(editando)) setEditando(BASE);
+    diferir("local:idiomas", () => supabase.from("locales").update({ idiomas: siguiente }).eq("id", local.id), 0);
+  };
+
+  /* Escribir una traducción. Si el campo queda vacío, se borra la clave
+     y ese texto vuelve a mostrarse en español. */
+  const cambiarTraduccion = (tabla, fila, campo, valor) => {
+    const previas = fila.traducciones || {};
+    const delIdioma = { ...(previas[editando] || {}) };
+    if (valor.trim()) delIdioma[campo] = valor;
+    else delete delIdioma[campo];
+    const traducciones = { ...previas, [editando]: delIdioma };
+
+    const aplicar = (lista) => lista.map((x) => (x.id === fila.id ? { ...x, traducciones } : x));
+    if (tabla === "categorias") setCats(aplicar);
+    else setProds(aplicar);
+
+    diferir(
+      `trad:${tabla}:${fila.id}:${campo}`,
+      () => supabase.from(tabla).update({ traducciones }).eq("id", fila.id)
+    );
+  };
+
   const cambiarLocal = (campo, valor, inmediato) => {
     setDatos((d) => ({ ...d, [campo]: valor }));
     diferir(
@@ -129,12 +165,16 @@ export default function EditorCarta({ local, esAdmin, volver }) {
   /* ── vista previa: se arma con la misma forma que devuelve la base ── */
   const vistaPrevia = {
     nombre: datos.nombre, zona: datos.zona, direccion: datos.direccion,
-    lema: datos.lema, tema: datos.tema,
+    lema: datos.lema, tema: datos.tema, idiomas,
     categorias: cats.map((c) => ({
       nombre: c.nombre,
+      t: c.traducciones || {},
       items: prods
         .filter((p) => p.categoria_id === c.id)
-        .map((p) => ({ nombre: p.nombre, desc: p.descripcion, precio: p.precio, disponible: p.disponible })),
+        .map((p) => ({
+          nombre: p.nombre, desc: p.descripcion, precio: p.precio,
+          disponible: p.disponible, t: p.traducciones || {},
+        })),
     })),
   };
 
@@ -156,7 +196,7 @@ export default function EditorCarta({ local, esAdmin, volver }) {
       </div>
 
       <div className="b-tabs">
-        {[["carta", "Carta"], ["diseno", "Diseño"], ["qr", "QR y cartelería"], ["local", "Datos del local"], ["historial", "Historial"]].map(([k, l]) => (
+        {[["carta", "Carta"], ["diseno", "Diseño"], ...(esAdmin ? [["qr", "QR y cartelería"]] : []), ["local", "Datos del local"], ["historial", "Historial"]].map(([k, l]) => (
           <button key={k} className={`b-tab ${tab === k ? "sel" : ""}`} onClick={() => setTab(k)}>{l}</button>
         ))}
       </div>
@@ -167,6 +207,25 @@ export default function EditorCarta({ local, esAdmin, volver }) {
 
           {!cargando && tab === "carta" && (
             <div style={{ display: "grid", gap: 14 }}>
+              {idiomas.length > 1 && (
+                <div className="b-panel" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 10, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--tiza)" }}>
+                    Escribiendo en
+                  </span>
+                  {idiomas.map((k) => (
+                    <button key={k} className={`b-btn mini ${editando === k ? "oro" : ""}`} onClick={() => setEditando(k)}>
+                      {IDIOMAS[k].nombre}
+                    </button>
+                  ))}
+                  {editando !== BASE && (
+                    <span className="b-nota" style={{ flex: "1 1 100%", margin: 0 }}>
+                      Lo que dejes vacío se muestra en español. A los nombres de los platos conviene no
+                      tocarlos: “Provoleta” se explica en la descripción, no se cambia por otra palabra.
+                    </span>
+                  )}
+                </div>
+              )}
+
               <div className="b-panel" style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
                 <label className="b-campo" style={{ flex: "1 1 220px", margin: 0 }}>
                   <span>Nueva categoría</span>
@@ -238,10 +297,36 @@ export default function EditorCarta({ local, esAdmin, volver }) {
                   </button>
                 ))}
               </div>
+
+              <div style={{ marginTop: 28, borderTop: "1px solid var(--linea)", paddingTop: 22 }}>
+                <p className="b-eyebrow">Idiomas de la carta</p>
+                <p className="b-sub" style={{ marginBottom: 14 }}>
+                  Marcá los que quieras ofrecer. Si hay más de uno, el cliente ve unos botones arriba de la
+                  carta para cambiar de idioma, y al escanear se abre directo en el de su celular.
+                </p>
+                <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+                  {CLAVES.map((k) => (
+                    <label key={k} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14,
+                      cursor: k === BASE ? "default" : "pointer" }}>
+                      <input type="checkbox" checked={idiomas.includes(k)} disabled={k === BASE}
+                        onChange={() => cambiarIdioma(k)}
+                        style={{ width: 16, height: 16, accentColor: "#C79A4B" }} />
+                      <span style={{ color: idiomas.includes(k) ? "var(--hueso)" : "var(--tiza)" }}>
+                        {IDIOMAS[k].nombre}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                <p className="b-nota" style={{ marginTop: 14 }}>
+                  El español no se puede desmarcar: es la base. Lo que no traduzcas se muestra en español,
+                  así que podés habilitar inglés y traducir solo las descripciones que valga la pena.
+                  Las traducciones se escriben en la solapa Carta.
+                </p>
+              </div>
             </div>
           )}
 
-          {!cargando && tab === "qr" && <PlacaQR local={datos} />}
+          {!cargando && tab === "qr" && esAdmin && <PlacaQR local={datos} />}
 
           {!cargando && tab === "local" && (
             <div className="b-panel">

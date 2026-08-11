@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { supabase, direccionar } from "@/lib/supabase";
 import EditorCarta from "@/components/EditorCarta";
+import { MARCA, BAJADA } from "@/lib/marca";
 
 /* ── acceso ──────────────────────────────────────────────── */
 function Acceso() {
@@ -135,9 +136,9 @@ function PanelPlataforma({ locales, recargar, abrir }) {
       </div>
 
       <div className="b-alerta" style={{ marginTop: 30 }}>
-        Después de crear un local, para darle acceso a su dueño: creá su usuario en Supabase
-        (Authentication → Users) y vinculalo al bar con el bloque del paso 5 del archivo
-        barra-prueba-permisos.sql.
+        <b style={{ color: "var(--hueso)" }}>Recordatorio interno:</b> después de crear un local,
+        el dueño todavía no puede entrar. Hay que crearle el usuario en Supabase y vincularlo a su
+        bar. Está explicado en el LEEME, en “Cómo dar de alta un bar nuevo”.
       </div>
     </div>
   );
@@ -195,7 +196,7 @@ export default function Panel() {
     <>
       <header className="b-top">
         <div className="b-topin">
-          <div className="b-marca">BARRA<small>Menús digitales</small></div>
+          <div className="b-marca">{MARCA}<small>{BAJADA}</small></div>
           <div className="b-spacer" />
           <span className="b-quien">
             {esAdmin ? "Cuenta de plataforma" : "Local"} · <b>{sesion.user.email}</b>

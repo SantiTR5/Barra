@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
+import { MARCA } from "@/lib/marca";
 
 /* Paletas de la placa. Ojo: el QR va SIEMPRE oscuro sobre blanco,
    sin importar el fondo elegido. Un QR invertido o de bajo contraste
@@ -154,7 +155,7 @@ export default function PlacaQR({ local }) {
 
       <text x="100" y="277" textAnchor="middle" fill={p.suave}
         fontFamily="Helvetica, Arial, sans-serif" fontSize="5" letterSpacing="2.4">
-        CARTA DIGITAL · BARRA
+        CARTA DIGITAL · {MARCA.toUpperCase()}
       </text>
     </svg>
   );

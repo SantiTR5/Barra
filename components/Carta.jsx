@@ -1,5 +1,10 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { temaDe } from "@/lib/temas";
-import { plata } from "@/lib/supabase";
+import { plata } from "@/lib/formato";
+import { MARCA } from "@/lib/marca";
+import { IDIOMAS, BASE, texto, idiomaDelCelular } from "@/lib/idiomas";
 
 function Portada({ carta, tema }) {
   const t = tema.v;
@@ -58,14 +63,60 @@ function Portada({ carta, tema }) {
   );
 }
 
+/* Los circulitos de idioma. Solo aparecen si el bar habilitó más de uno:
+   una carta en un solo idioma no debe mostrar un selector de una opción. */
+function SelectorIdioma({ idiomas, actual, elegir }) {
+  if (!idiomas || idiomas.length < 2) return null;
+  return (
+    <nav style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap", margin: "18px 0 4px" }}>
+      {idiomas.map((k) => {
+        const sel = k === actual;
+        return (
+          <button
+            key={k}
+            onClick={() => elegir(k)}
+            aria-pressed={sel}
+            style={{
+              border: "1px solid var(--m-acento)",
+              background: sel ? "var(--m-acento)" : "transparent",
+              color: sel ? "var(--m-bg)" : "var(--m-acento)",
+              borderRadius: 99,
+              padding: "5px 13px",
+              fontSize: 11,
+              fontFamily: "var(--m-texto)",
+              letterSpacing: ".06em",
+              lineHeight: 1.2,
+              cursor: "pointer",
+            }}
+          >
+            {IDIOMAS[k]?.nombre || k}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 export default function Carta({ carta, enFono }) {
+  const idiomas = ((carta?.idiomas?.length ? carta.idiomas : [BASE]) || []).filter((k) => IDIOMAS[k]);
+  const [idioma, setIdioma] = useState(BASE);
+
+  // Se resuelve en el navegador para no romper el dibujado del servidor.
+  useEffect(() => {
+    if (idiomas.length > 1) setIdioma(idiomaDelCelular(idiomas));
+    else setIdioma(BASE);
+  }, [carta?.nombre, idiomas.join(",")]);
+
   if (!carta) return null;
   const tema = temaDe(carta.tema);
   const cats = carta.categorias || [];
+  const vocab = IDIOMAS[idioma] || IDIOMAS[BASE];
 
   const cuerpo = (
     <div className="b-menu" style={{ ...tema.v, padding: "26px 22px 34px", minHeight: "100%" }}>
       <Portada carta={carta} tema={tema} />
+
+      <SelectorIdioma idiomas={idiomas} actual={idioma} elegir={setIdioma} />
 
       {cats.length === 0 && (
         <p style={{ textAlign: "center", color: "var(--m-suave)", fontSize: 13, marginTop: 30 }}>
@@ -75,17 +126,20 @@ export default function Carta({ carta, enFono }) {
 
       {cats.map((cat, i) => (
         <section key={i}>
-          <h2 className="b-cat">{cat.nombre}</h2>
-          {(cat.items || []).map((it, j) => (
-            <div key={j}>
-              <div className={`b-linea ${it.disponible ? "" : "b-agotado"}`}>
-                <span className="n">{it.nombre}</span>
-                <span className={`b-puntos ${tema.puntos ? "" : "sin"}`} />
-                <span className="p">{it.disponible ? plata(it.precio) : "sin stock"}</span>
+          <h2 className="b-cat">{texto(cat, "nombre", idioma)}</h2>
+          {(cat.items || []).map((it, j) => {
+            const desc = texto(it, "desc", idioma);
+            return (
+              <div key={j}>
+                <div className={`b-linea ${it.disponible ? "" : "b-agotado"}`}>
+                  <span className="n">{texto(it, "nombre", idioma)}</span>
+                  <span className={`b-puntos ${tema.puntos ? "" : "sin"}`} />
+                  <span className="p">{it.disponible ? plata(it.precio) : vocab.sinStock}</span>
+                </div>
+                {desc && <p className="b-desc">{desc}</p>}
               </div>
-              {it.desc && <p className="b-desc">{it.desc}</p>}
-            </div>
-          ))}
+            );
+          })}
         </section>
       ))}
 
@@ -93,7 +147,7 @@ export default function Carta({ carta, enFono }) {
         <p style={{ textAlign: "center", fontSize: 11.5, color: "var(--m-suave)", marginTop: 34 }}>{carta.direccion}</p>
       )}
       <p style={{ textAlign: "center", fontSize: 9, letterSpacing: ".2em", color: "var(--m-suave)", marginTop: 14, textTransform: "uppercase" }}>
-        Carta digital · BARRA
+        {vocab.etiqueta} · {MARCA}
       </p>
     </div>
   );
