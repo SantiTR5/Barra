@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { supabase, direccionar } from "@/lib/supabase";
 import EditorCarta from "@/components/EditorCarta";
 import { MARCA, BAJADA } from "@/lib/marca";
-import { subirLogo, LIMITE_KB } from "@/lib/logo-archivo";
+import { subirLogo, LIMITE_KB } from "@/lib/imagenes";
 
 /* ── acceso ──────────────────────────────────────────────── */
 function Acceso() {

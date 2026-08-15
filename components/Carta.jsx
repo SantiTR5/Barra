@@ -163,6 +163,29 @@ export default function Carta({ carta, enFono }) {
           <h2 className="b-cat">{texto(cat, "nombre", idioma)}</h2>
           {(cat.items || []).map((it, j) => {
             const desc = texto(it, "desc", idioma);
+
+            /* Con foto, el plato pasa a fila con miniatura al costado.
+               Sin foto, queda la línea de puntos de siempre. Se mezclan
+               sin problema: un bar puede fotografiar solo sus estrellas
+               y dejar el resto como texto. */
+            if (it.foto)
+              return (
+                <div key={j} className={it.disponible ? "" : "b-agotado"}
+                  style={{ display: "flex", gap: 12, alignItems: "flex-start", margin: "0 0 16px" }}>
+                  <img src={it.foto} alt="" loading="lazy"
+                    style={{ width: 72, height: 72, objectFit: "cover", borderRadius: 4,
+                             flex: "0 0 auto", opacity: it.disponible ? 1 : 0.4 }} />
+                  <div style={{ flex: "1 1 auto", minWidth: 0 }}>
+                    <div className="b-linea" style={{ margin: "0 0 4px" }}>
+                      <span className="n" style={{ whiteSpace: "normal" }}>{it.nombre}</span>
+                      <span className={`b-puntos ${tema.puntos ? "" : "sin"}`} />
+                      <span className="p">{it.disponible ? plata(it.precio) : vocab.sinStock}</span>
+                    </div>
+                    {desc && <p className="b-desc" style={{ margin: 0 }}>{desc}</p>}
+                  </div>
+                </div>
+              );
+
             return (
               <div key={j}>
                 <div className={`b-linea ${it.disponible ? "" : "b-agotado"}`}>

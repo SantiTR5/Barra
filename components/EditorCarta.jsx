@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { plata } from "@/lib/formato";
 import { IDIOMAS, BASE, CLAVES, texto } from "@/lib/idiomas";
-import { subirLogo, LIMITE_KB } from "@/lib/logo-archivo";
+import { subirLogo, subirFoto, LIMITE_KB } from "@/lib/imagenes";
 import { PALETAS_CARTA, TIPOGRAFIAS, CLAVES_PALETA_CARTA, CLAVES_TIPOGRAFIA, estiloDe } from "@/lib/estilo-carta";
 import Carta from "./Carta";
 import PlacaQR from "./PlacaQR";
@@ -45,6 +45,8 @@ export default function EditorCarta({ local, esAdmin, volver }) {
   const [solapa, setSolapa] = useState(null);   // id de la solapa abierta
   const [editando, setEditando] = useState(BASE);   // idioma que se está escribiendo
   const [subiendo, setSubiendo] = useState(false);
+  const [subiendoFoto, setSubiendoFoto] = useState(null);   // id del producto
+  const [errFoto, setErrFoto] = useState("");
   const [errLogo, setErrLogo] = useState("");
 
   const diferir = useGuardadoDiferido(setEstado);
@@ -99,6 +101,27 @@ export default function EditorCarta({ local, esAdmin, volver }) {
       `trad:${tabla}:${fila.id}:${campo}`,
       () => supabase.from(tabla).update({ traducciones }).eq("id", fila.id)
     );
+  };
+
+  /* La foto se achica y se recorta cuadrada en el navegador antes de
+     subir. Un celular saca 5 MB; así queda en unos 100 KB. */
+  const cambiarFoto = async (prod, archivo) => {
+    setErrFoto("");
+    if (!archivo) return;
+    setSubiendoFoto(prod.id);
+    const r = await subirFoto(local.id, prod.id, archivo);
+    if (r.error) {
+      setErrFoto(`${prod.nombre}: ${r.error}`);
+    } else {
+      setProds((x) => x.map((p) => (p.id === prod.id ? { ...p, foto_url: r.url } : p)));
+      await supabase.from("productos").update({ foto_url: r.url }).eq("id", prod.id);
+    }
+    setSubiendoFoto(null);
+  };
+
+  const quitarFoto = async (prod) => {
+    setProds((x) => x.map((p) => (p.id === prod.id ? { ...p, foto_url: null } : p)));
+    await supabase.from("productos").update({ foto_url: null }).eq("id", prod.id);
   };
 
   const cambiarLogo = async (archivo) => {
@@ -281,7 +304,7 @@ export default function EditorCarta({ local, esAdmin, volver }) {
             .filter((p) => p.categoria_id === c.id)
             .map((p) => ({
               nombre: p.nombre, desc: p.descripcion, precio: p.precio,
-              disponible: p.disponible, t: p.traducciones || {},
+              disponible: p.disponible, foto: p.foto_url, t: p.traducciones || {},
             })),
         })),
     })),
@@ -422,7 +445,25 @@ export default function EditorCarta({ local, esAdmin, volver }) {
 
                   {prods.filter((p) => p.categoria_id === cat.id).map((it) => (
                     <div className="b-fila" key={it.id}>
-                      <div style={{ flex: "1 1 auto", minWidth: 0, display: "grid", gap: 6 }}>
+                      {/* miniatura + botón de foto */}
+                    <label style={{
+                      flex: "0 0 auto", width: 58, height: 58, borderRadius: 3, cursor: "pointer",
+                      border: "1px solid var(--linea)", borderStyle: it.foto_url ? "solid" : "dashed",
+                      background: it.foto_url ? `center/cover no-repeat url(${it.foto_url})` : "transparent",
+                      display: "grid", placeItems: "center", position: "relative", overflow: "hidden",
+                    }} title={it.foto_url ? "Cambiar la foto" : "Agregar una foto"}>
+                      <input type="file" accept="image/*" style={{ display: "none" }}
+                        disabled={subiendoFoto === it.id}
+                        onChange={(e) => cambiarFoto(it, e.target.files?.[0] || null)} />
+                      {subiendoFoto === it.id ? (
+                        <span style={{ fontSize: 9, color: "var(--bronce2)", background: "var(--verde)",
+                          padding: "2px 4px", borderRadius: 2 }}>subiendo</span>
+                      ) : !it.foto_url ? (
+                        <span style={{ fontSize: 17, color: "var(--tiza)", lineHeight: 1 }}>+</span>
+                      ) : null}
+                    </label>
+
+                    <div style={{ flex: "1 1 auto", minWidth: 0, display: "grid", gap: 6 }}>
                         {editando === BASE ? (
                           <input className="b-in" value={it.nombre} placeholder="Nombre del producto"
                             onChange={(e) => cambiarProd(it.id, "nombre", e.target.value)} />
@@ -457,6 +498,9 @@ export default function EditorCarta({ local, esAdmin, volver }) {
                             onClick={() => cambiarProd(it.id, "disponible", !it.disponible, true)}>
                             {it.disponible ? "En carta" : "Sin stock"}
                           </button>
+                          {it.foto_url && (
+                            <button className="b-btn mini" onClick={() => quitarFoto(it)} title="Quitar la foto">🖼</button>
+                          )}
                           <button className="b-btn mini rojo" onClick={() => borrarProd(it.id)}>✕</button>
                         </div>
                       </div>
@@ -466,6 +510,7 @@ export default function EditorCarta({ local, esAdmin, volver }) {
                   <button className="b-btn mini" style={{ marginTop: 12 }} onClick={() => agregarProd(cat)}>
                     + Agregar producto
                   </button>
+                  {errFoto && <p className="b-error" style={{ marginTop: 10 }}>{errFoto}</p>}
                 </div>
               ))}
 
