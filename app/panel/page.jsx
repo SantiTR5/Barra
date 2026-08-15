@@ -46,8 +46,9 @@ function Acceso() {
       </div>
 
       <p className="b-nota" style={{ marginTop: 34, borderTop: "1px solid var(--linea)", paddingTop: 18 }}>
-        ¿Viniste a ver la carta de un bar? Escaneá el QR de tu mesa: se abre sola, sin usuario
-        ni contraseña. Esta pantalla es solo para los locales y para la plataforma.
+        ¿Viniste a ver la carta de un bar? Escaneá el QR de tu mesa o apoyá el celular sobre el
+        sticker si tiene NFC: se abre sola, sin usuario ni contraseña. Esta pantalla es solo para
+        los locales y para la plataforma.
       </p>
     </div>
   );

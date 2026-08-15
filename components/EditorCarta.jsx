@@ -34,12 +34,15 @@ function useGuardadoDiferido(setEstado) {
 export default function EditorCarta({ local, esAdmin, volver }) {
   const [tab, setTab] = useState("carta");
   const [datos, setDatos] = useState(local);
+  const [secs, setSecs] = useState([]);
   const [cats, setCats] = useState([]);
   const [prods, setProds] = useState([]);
   const [historial, setHistorial] = useState([]);
   const [estado, setEstado] = useState("al-dia");
   const [cargando, setCargando] = useState(true);
   const [nuevaCat, setNuevaCat] = useState("");
+  const [nuevaSec, setNuevaSec] = useState("");
+  const [solapa, setSolapa] = useState(null);   // id de la solapa abierta
   const [editando, setEditando] = useState(BASE);   // idioma que se está escribiendo
   const [subiendo, setSubiendo] = useState(false);
   const [errLogo, setErrLogo] = useState("");
@@ -49,11 +52,14 @@ export default function EditorCarta({ local, esAdmin, volver }) {
   useEffect(() => {
     (async () => {
       setCargando(true);
-      const [c, p, h] = await Promise.all([
+      const [se, c, p, h] = await Promise.all([
+        supabase.from("secciones").select("*").eq("local_id", local.id).order("orden"),
         supabase.from("categorias").select("*").eq("local_id", local.id).order("orden"),
         supabase.from("productos").select("*").eq("local_id", local.id).order("orden"),
         supabase.from("historial").select("*").eq("local_id", local.id).order("creado_en", { ascending: false }).limit(50),
       ]);
+      setSecs(se.data || []);
+      setSolapa((se.data || [])[0]?.id ?? null);
       setCats(c.data || []);
       setProds(p.data || []);
       setHistorial(h.data || []);
@@ -125,6 +131,80 @@ export default function EditorCarta({ local, esAdmin, volver }) {
   };
 
   /* ── categorías ────────────────────────────────────────── */
+  /* ── solapas ── */
+  const agregarSec = async () => {
+    const nombre = nuevaSec.trim();
+    if (!nombre) return;
+    setNuevaSec("");
+    setEstado("guardando");
+    const { data, error } = await supabase.from("secciones")
+      .insert({ local_id: local.id, nombre, orden: secs.length + 1 })
+      .select().single();
+    if (!error && data) {
+      setSecs((x) => [...x, data]);
+      setSolapa(data.id);
+    }
+    setEstado(error ? "mal" : "al-dia");
+  };
+
+  const renombrarSec = (id, nombre) => {
+    setSecs((x) => x.map((s2) => (s2.id === id ? { ...s2, nombre } : s2)));
+    diferir(`sec:${id}`, () => supabase.from("secciones").update({ nombre }).eq("id", id));
+  };
+
+  const traducirSec = (sec, valor) => {
+    const previas = sec.traducciones || {};
+    const delIdioma = { ...(previas[editando] || {}) };
+    if (valor.trim()) delIdioma.nombre = valor; else delete delIdioma.nombre;
+    const traducciones = { ...previas, [editando]: delIdioma };
+    setSecs((x) => x.map((s2) => (s2.id === sec.id ? { ...s2, traducciones } : s2)));
+    diferir(`sect:${sec.id}`, () => supabase.from("secciones").update({ traducciones }).eq("id", sec.id));
+  };
+
+  const moverSec = async (id, paso) => {
+    const i = secs.findIndex((s2) => s2.id === id);
+    const j = i + paso;
+    if (i < 0 || j < 0 || j >= secs.length) return;
+    const lista = [...secs];
+    [lista[i], lista[j]] = [lista[j], lista[i]];
+    setSecs(lista);
+    setEstado("guardando");
+    await Promise.all(lista.map((s2, k) => supabase.from("secciones").update({ orden: k + 1 }).eq("id", s2.id)));
+    setEstado("al-dia");
+  };
+
+  /* Al borrar una solapa, sus categorías NO se borran: pasan a la
+     primera que quede. Perder media carta por tocar un botón sería
+     imperdonable. */
+  const borrarSec = async (sec) => {
+    const dentro = cats.filter((c) => c.seccion_id === sec.id);
+    const destino = secs.find((s2) => s2.id !== sec.id);
+    if (!destino) return alert("Tiene que quedar al menos una solapa.");
+    const aviso = dentro.length
+      ? `¿Borrar la solapa "${sec.nombre}"? Sus ${dentro.length} categorías pasan a "${destino.nombre}".`
+      : `¿Borrar la solapa "${sec.nombre}"?`;
+    if (!confirm(aviso)) return;
+
+    setEstado("guardando");
+    if (dentro.length) {
+      await supabase.from("categorias").update({ seccion_id: destino.id }).eq("seccion_id", sec.id);
+      setCats((x) => x.map((c) => (c.seccion_id === sec.id ? { ...c, seccion_id: destino.id } : c)));
+    }
+    const { error } = await supabase.from("secciones").delete().eq("id", sec.id);
+    if (!error) {
+      setSecs((x) => x.filter((s2) => s2.id !== sec.id));
+      if (solapa === sec.id) setSolapa(destino.id);
+    }
+    setEstado(error ? "mal" : "al-dia");
+  };
+
+  const moverCatDeSolapa = async (catId, seccionId) => {
+    setCats((x) => x.map((c) => (c.id === catId ? { ...c, seccion_id: seccionId } : c)));
+    setEstado("guardando");
+    const { error } = await supabase.from("categorias").update({ seccion_id: seccionId }).eq("id", catId);
+    setEstado(error ? "mal" : "al-dia");
+  };
+
   const agregarCat = async () => {
     const nombre = nuevaCat.trim();
     if (!nombre) return;
@@ -132,7 +212,7 @@ export default function EditorCarta({ local, esAdmin, volver }) {
     setEstado("guardando");
     const { data, error } = await supabase
       .from("categorias")
-      .insert({ local_id: local.id, nombre, orden: cats.length + 1 })
+      .insert({ local_id: local.id, nombre, orden: cats.length + 1, seccion_id: solapa })
       .select()
       .single();
     if (!error && data) setCats((c) => [...c, data]);
@@ -189,14 +269,20 @@ export default function EditorCarta({ local, esAdmin, volver }) {
   const vistaPrevia = {
     nombre: datos.nombre, zona: datos.zona, direccion: datos.direccion,
     lema: datos.lema, logo: datos.logo_url, paleta: datos.paleta, tipografia: datos.tipografia, idiomas,
-    categorias: cats.map((c) => ({
-      nombre: c.nombre,
-      t: c.traducciones || {},
-      items: prods
-        .filter((p) => p.categoria_id === c.id)
-        .map((p) => ({
-          nombre: p.nombre, desc: p.descripcion, precio: p.precio,
-          disponible: p.disponible, t: p.traducciones || {},
+    secciones: secs.map((s2) => ({
+      nombre: s2.nombre,
+      t: s2.traducciones || {},
+      categorias: cats
+        .filter((c) => c.seccion_id === s2.id || (!c.seccion_id && s2.id === secs[0]?.id))
+        .map((c) => ({
+          nombre: c.nombre,
+          t: c.traducciones || {},
+          items: prods
+            .filter((p) => p.categoria_id === c.id)
+            .map((p) => ({
+              nombre: p.nombre, desc: p.descripcion, precio: p.precio,
+              disponible: p.disponible, t: p.traducciones || {},
+            })),
         })),
     })),
   };
@@ -251,9 +337,61 @@ export default function EditorCarta({ local, esAdmin, volver }) {
                 </div>
               )}
 
+              <div className="b-panel">
+                <p className="b-eyebrow">Solapas de la carta</p>
+                <p className="b-sub" style={{ fontSize: 12.5, marginBottom: 14 }}>
+                  Agrupan las categorías para que el cliente no tenga que bajar de más.
+                  Por ejemplo: Comida · Bebidas · Postres.
+                </p>
+
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+                  {secs.map((s2) => (
+                    <button key={s2.id} className={`b-btn mini ${solapa === s2.id ? "oro" : ""}`}
+                      onClick={() => setSolapa(s2.id)}>
+                      {s2.nombre}
+                      <span style={{ opacity: 0.6, marginLeft: 6 }}>
+                        {cats.filter((c) => c.seccion_id === s2.id).length}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+                  <label className="b-campo" style={{ flex: "1 1 180px", margin: 0 }}>
+                    <span>Nueva solapa</span>
+                    <input className="b-in" value={nuevaSec} placeholder="Bebidas, Postres, Merienda…"
+                      onChange={(e) => setNuevaSec(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && agregarSec()} />
+                  </label>
+                  <button className="b-btn" onClick={agregarSec}>Agregar solapa</button>
+                </div>
+
+                {solapa && (() => {
+                  const sec = secs.find((x) => x.id === solapa);
+                  if (!sec) return null;
+                  const i = secs.findIndex((x) => x.id === solapa);
+                  return (
+                    <div style={{ marginTop: 16, borderTop: "1px solid var(--linea)", paddingTop: 14,
+                      display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                      <input className="b-in" style={{ flex: "1 1 160px" }}
+                        value={editando === BASE ? sec.nombre : (sec.traducciones?.[editando]?.nombre || "")}
+                        placeholder={editando === BASE ? "Nombre de la solapa" : sec.nombre}
+                        onChange={(e) => editando === BASE
+                          ? renombrarSec(sec.id, e.target.value)
+                          : traducirSec(sec, e.target.value)} />
+                      <button className="b-btn mini" disabled={i === 0} onClick={() => moverSec(sec.id, -1)}>←</button>
+                      <button className="b-btn mini" disabled={i === secs.length - 1} onClick={() => moverSec(sec.id, 1)}>→</button>
+                      <button className="b-btn mini rojo" disabled={secs.length < 2} onClick={() => borrarSec(sec)}>
+                        Borrar solapa
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
+
               <div className="b-panel" style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
                 <label className="b-campo" style={{ flex: "1 1 220px", margin: 0 }}>
-                  <span>Nueva categoría</span>
+                  <span>Nueva categoría {solapa && secs.find((x) => x.id === solapa) ? `en ${secs.find((x) => x.id === solapa).nombre}` : ""}</span>
                   <input className="b-in" value={nuevaCat} placeholder="Ej: Tapas, Vinos, Postres"
                     onChange={(e) => setNuevaCat(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && agregarCat()} />
@@ -261,7 +399,9 @@ export default function EditorCarta({ local, esAdmin, volver }) {
                 <button className="b-btn oro" onClick={agregarCat}>Agregar categoría</button>
               </div>
 
-              {cats.map((cat) => (
+              {cats
+                .filter((c) => c.seccion_id === solapa || (!c.seccion_id && solapa === secs[0]?.id))
+                .map((cat) => (
                 <div className="b-panel" key={cat.id}>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
                     <input className="b-in" style={{ flex: "1 1 180px", fontFamily: "var(--display)", fontSize: 18 }}
@@ -270,6 +410,13 @@ export default function EditorCarta({ local, esAdmin, volver }) {
                       onChange={(e) => editando === BASE
                         ? renombrarCat(cat.id, e.target.value)
                         : cambiarTraduccion("categorias", cat, "nombre", e.target.value)} />
+                    {secs.length > 1 && (
+                      <select className="b-in" style={{ flex: "0 0 auto", width: "auto", fontSize: 12, padding: "6px 8px" }}
+                        value={cat.seccion_id || solapa || ""}
+                        onChange={(e) => moverCatDeSolapa(cat.id, e.target.value)}>
+                        {secs.map((s2) => <option key={s2.id} value={s2.id}>{s2.nombre}</option>)}
+                      </select>
+                    )}
                     <button className="b-btn mini rojo" onClick={() => borrarCat(cat)}>Borrar</button>
                   </div>
 
@@ -322,8 +469,10 @@ export default function EditorCarta({ local, esAdmin, volver }) {
                 </div>
               ))}
 
-              {cats.length === 0 && (
-                <p className="b-sub">Empezá creando una categoría, por ejemplo “Hamburguesas”.</p>
+              {cats.filter((c) => c.seccion_id === solapa || (!c.seccion_id && solapa === secs[0]?.id)).length === 0 && (
+                <p className="b-sub">
+                  Esta solapa está vacía. Creá una categoría, por ejemplo “Hamburguesas”.
+                </p>
               )}
             </div>
           )}
@@ -384,6 +533,7 @@ export default function EditorCarta({ local, esAdmin, volver }) {
                 </div>
               </div>
 
+              {esAdmin && (
               <div className="b-panel">
                 <p className="b-eyebrow">Idiomas de la carta</p>
                 <p className="b-sub" style={{ marginBottom: 14 }}>
@@ -405,9 +555,11 @@ export default function EditorCarta({ local, esAdmin, volver }) {
                 </div>
                 <p className="b-nota" style={{ marginTop: 14 }}>
                   El español no se puede desmarcar: es la base. Lo que no traduzcas se muestra en español.
-                  Las traducciones se escriben en la solapa Carta.
+                  Las traducciones se escriben en la solapa Carta. Este bloque solo lo ve la plataforma:
+                  el local puede escribir las traducciones, pero no decidir qué idiomas se ofrecen.
                 </p>
               </div>
+              )}
 
             </div>
           )}

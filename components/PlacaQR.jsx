@@ -74,9 +74,32 @@ export default function PlacaQR({ local }) {
   const [formato, setFormato] = useState("redondo");
   const [conLogo, setConLogo] = useState(true);
   const [aviso, setAviso] = useState("");
+  const [logoIncrustado, setLogoIncrustado] = useState(null);
+  const [usarLogo, setUsarLogo] = useState(true);
 
   useEffect(() => setOrigen(window.location.origin), []);
   useEffect(() => setPaleta(paletaDe(local.codigo || local.nombre)), [local.codigo]);
+
+  /* El logo se incrusta dentro del SVG como datos, no como enlace.
+     Si quedara enlazado, el archivo que abre la imprenta mostraría un
+     hueco: su computadora no tiene acceso a nuestro servidor. */
+  useEffect(() => {
+    let vivo = true;
+    setLogoIncrustado(null);
+    if (!local.logo_url) return;
+    (async () => {
+      try {
+        const r = await fetch(local.logo_url);
+        const blob = await r.blob();
+        const lector = new FileReader();
+        lector.onload = () => { if (vivo) setLogoIncrustado(lector.result); };
+        lector.readAsDataURL(blob);
+      } catch {
+        if (vivo) setLogoIncrustado(null);
+      }
+    })();
+    return () => { vivo = false; };
+  }, [local.logo_url]);
 
   const url = origen ? `${origen}/q/${local.codigo}` : "";
   const enLaCompu = origen.includes("localhost") || origen.includes("127.0.0.1");
@@ -116,15 +139,49 @@ export default function PlacaQR({ local }) {
     return salida;
   };
 
-  const logoCentral = (cx, cy, r) =>
-    conLogo ? (
+  const hayLogo = Boolean(logoIncrustado) && usarLogo;
+
+  /* Emblema del centro del código: el logo del local si lo cargó,
+     y si no el monograma. Ocupa menos del 7% del área, así que con
+     corrección de errores alta el celular reconstruye lo tapado. */
+  const logoCentral = (cx, cy, r) => {
+    if (!conLogo) return null;
+    if (hayLogo)
+      return (
+        <g>
+          <circle cx={cx} cy={cy} r={r} fill="#FFFFFF" />
+          <image href={logoIncrustado} x={cx - r * 0.78} y={cy - r * 0.78}
+            width={r * 1.56} height={r * 1.56} preserveAspectRatio="xMidYMid meet" />
+        </g>
+      );
+    return (
       <g>
         <circle cx={cx} cy={cy} r={r} fill="#FFFFFF" />
         <circle cx={cx} cy={cy} r={r * 0.87} fill="none" stroke="#0D1614" strokeWidth={r * 0.07} />
         <text x={cx} y={cy + r * 0.33} textAnchor="middle" fill="#0D1614"
           fontFamily={SERIF} fontSize={r * 0.88}>{sigla}</text>
       </g>
-    ) : null;
+    );
+  };
+
+  /* El sello grande del cuadrado, la placa y la tira. El logo del local
+     va sin aro: un logo suele traer su propia forma y encerrarlo en un
+     círculo lo empeora. El monograma sí lo lleva. */
+  const emblema = (cx, cy, r, cuerpo) => {
+    if (hayLogo)
+      return (
+        <image href={logoIncrustado} x={cx - r} y={cy - r} width={r * 2} height={r * 2}
+          preserveAspectRatio="xMidYMid meet" />
+      );
+    return (
+      <g>
+        <circle cx={cx} cy={cy} r={r} fill="none" stroke={p.acento} strokeWidth={r * 0.068} />
+        <circle cx={cx} cy={cy} r={r * 0.84} fill="none" stroke={p.acento} strokeWidth={r * 0.022} />
+        <text x={cx} y={cy + r * 0.39} textAnchor="middle" fill={p.tinta}
+          fontFamily={SERIF} fontSize={cuerpo}>{sigla}</text>
+      </g>
+    );
+  };
 
   const largo = local.nombre.length;
   const espNombre = largo > 16 ? 0.5 : 0.9;
@@ -177,11 +234,7 @@ export default function PlacaQR({ local }) {
       <rect x="4" y="4" width="92" height="92" rx="2" fill="none" stroke={p.acento} strokeWidth="0.55" />
       <rect x="6" y="6" width="88" height="88" rx="1.4" fill="none" stroke={p.acento} strokeWidth="0.18" />
 
-      <g>
-        <circle cx="50" cy="17" r="7.4" fill="none" stroke={p.acento} strokeWidth="0.5" />
-        <circle cx="50" cy="17" r="6.2" fill="none" stroke={p.acento} strokeWidth="0.18" />
-        <text x="50" y="19.9" textAnchor="middle" fill={p.tinta} fontFamily={SERIF} fontSize="7.4">{sigla}</text>
-      </g>
+      {emblema(50, 17, 7.4, 7.4)}
 
       <text x="50" y="31.5" textAnchor="middle" fill={p.tinta}
         fontFamily={SERIF} fontSize={tamNombreRecto} letterSpacing={espNombre}>
@@ -306,11 +359,7 @@ export default function PlacaQR({ local }) {
         <rect width="100" height="50" fill={p.bg} />
         <rect x="3" y="3" width="94" height="44" rx="2.4" fill="none" stroke={p.acento} strokeWidth="0.5" />
 
-        <g>
-          <circle cx="14" cy="15" r="6.6" fill="none" stroke={p.acento} strokeWidth="0.45" />
-          <circle cx="14" cy="15" r="5.5" fill="none" stroke={p.acento} strokeWidth="0.16" />
-          <text x="14" y="17.6" textAnchor="middle" fill={p.tinta} fontFamily={SERIF} fontSize="6.6">{sigla}</text>
-        </g>
+        {emblema(14, 15, 6.6, 6.6)}
 
         <text x="24" y="17.6" fill={p.tinta} fontFamily={SERIF} fontSize={fsN} letterSpacing="0.3">
           {local.nombre}
@@ -337,10 +386,7 @@ export default function PlacaQR({ local }) {
       <rect width="100" height="150" fill={p.bg} />
       <rect x="5" y="5" width="90" height="140" fill="none" stroke={p.acento} strokeWidth="0.35" />
 
-      <g>
-        <circle cx="50" cy="22" r="7.6" fill="none" stroke={p.acento} strokeWidth="0.5" />
-        <text x="50" y="25" textAnchor="middle" fill={p.tinta} fontFamily={SERIF} fontSize="7.6">{sigla}</text>
-      </g>
+      {emblema(50, 22, 8.4, 7.6)}
 
       <text x="50" y="41" textAnchor="middle" fill={p.tinta}
         fontFamily={SERIF} fontSize={largo > 17 ? 6.2 : 7.8} letterSpacing="0.4">
@@ -486,10 +532,24 @@ export default function PlacaQR({ local }) {
           </div>
 
           <div>
-            <p className="b-eyebrow">Monograma</p>
-            <button className={`b-btn mini ${conLogo ? "oro" : ""}`} onClick={() => setConLogo(!conLogo)}>
-              {conLogo ? `Con “${sigla}” en el centro` : "Código limpio"}
-            </button>
+            <p className="b-eyebrow">Emblema</p>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+              {logoIncrustado && (
+                <button className={`b-btn mini ${usarLogo ? "oro" : ""}`} onClick={() => setUsarLogo(!usarLogo)}>
+                  {usarLogo ? "Logo del local" : `Monograma “${sigla}”`}
+                </button>
+              )}
+              <button className={`b-btn mini ${conLogo ? "oro" : ""}`} onClick={() => setConLogo(!conLogo)}>
+                {conLogo ? "En el centro del código" : "Código limpio"}
+              </button>
+            </div>
+            <p className="b-nota" style={{ marginTop: 8 }}>
+              {logoIncrustado
+                ? "Se está usando el logo que cargaste en Datos del local. Podés volver al monograma cuando quieras."
+                : local.logo_url
+                  ? "Cargando el logo del local…"
+                  : `Este local no tiene logo cargado, así que se usa el monograma “${sigla}”. Podés subir un PNG desde Datos del local.`}
+            </p>
           </div>
 
           <div>

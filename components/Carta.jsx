@@ -63,8 +63,7 @@ function Portada({ carta, tema }) {
   );
 }
 
-/* Los circulitos de idioma. Solo aparecen si el bar habilitó más de uno:
-   una carta en un solo idioma no debe mostrar un selector de una opción. */
+/* Los circulitos de idioma. Solo aparecen si el bar ofrece más de uno. */
 function SelectorIdioma({ idiomas, actual, elegir }) {
   if (!idiomas || idiomas.length < 2) return null;
   return (
@@ -72,24 +71,47 @@ function SelectorIdioma({ idiomas, actual, elegir }) {
       {idiomas.map((k) => {
         const sel = k === actual;
         return (
-          <button
-            key={k}
-            onClick={() => elegir(k)}
-            aria-pressed={sel}
+          <button key={k} onClick={() => elegir(k)} aria-pressed={sel}
             style={{
               border: "1px solid var(--m-acento)",
               background: sel ? "var(--m-acento)" : "transparent",
               color: sel ? "var(--m-bg)" : "var(--m-acento)",
-              borderRadius: 99,
-              padding: "5px 13px",
-              fontSize: 11,
-              fontFamily: "var(--m-texto)",
-              letterSpacing: ".06em",
-              lineHeight: 1.2,
-              cursor: "pointer",
-            }}
-          >
+              borderRadius: 99, padding: "5px 13px", fontSize: 11,
+              fontFamily: "var(--m-texto)", letterSpacing: ".06em", lineHeight: 1.2, cursor: "pointer",
+            }}>
             {IDIOMAS[k]?.nombre || k}
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
+/* Las solapas de la carta. Quedan pegadas arriba mientras el cliente
+   baja, así puede saltar a otra sección sin volver al principio.
+   Con una sola solapa no se muestran: serían un adorno inútil. */
+function Solapas({ secciones, actual, elegir, idioma, bg }) {
+  if (secciones.length < 2) return null;
+  return (
+    <nav style={{
+      position: "sticky", top: 0, zIndex: 5, background: bg,
+      margin: "18px -22px 0", padding: "10px 22px 0",
+      borderBottom: "1px solid var(--m-linea)",
+      display: "flex", gap: 4, overflowX: "auto", WebkitOverflowScrolling: "touch",
+    }}>
+      {secciones.map((s, i) => {
+        const sel = i === actual;
+        return (
+          <button key={i} onClick={() => elegir(i)} aria-pressed={sel}
+            style={{
+              flex: "0 0 auto", border: 0, background: "transparent",
+              borderBottom: `2px solid ${sel ? "var(--m-acento)" : "transparent"}`,
+              color: sel ? "var(--m-acento)" : "var(--m-suave)",
+              fontFamily: "var(--m-texto)", fontSize: 12.5, letterSpacing: ".1em",
+              textTransform: "uppercase", padding: "8px 12px 10px",
+              whiteSpace: "nowrap", cursor: "pointer",
+            }}>
+            {texto(s, "nombre", idioma)}
           </button>
         );
       })}
@@ -100,35 +122,37 @@ function SelectorIdioma({ idiomas, actual, elegir }) {
 export default function Carta({ carta, enFono }) {
   const idiomas = ((carta?.idiomas?.length ? carta.idiomas : [BASE]) || []).filter((k) => IDIOMAS[k]);
   const [idioma, setIdioma] = useState(BASE);
+  const [solapa, setSolapa] = useState(0);
 
-  // Se resuelve en el navegador para no romper el dibujado del servidor.
   useEffect(() => {
     if (idiomas.length > 1) setIdioma(idiomaDelCelular(idiomas));
     else setIdioma(BASE);
   }, [carta?.nombre, idiomas.join(",")]);
 
+  const secciones = carta?.secciones || [];
+
+  // Si se borra una solapa mientras alguien la está mirando, no queda en blanco.
+  useEffect(() => {
+    if (solapa > secciones.length - 1) setSolapa(0);
+  }, [secciones.length, solapa]);
+
   if (!carta) return null;
   const tema = estiloDe(carta.paleta, carta.tipografia);
-  const cats = carta.categorias || [];
   const vocab = IDIOMAS[idioma] || IDIOMAS[BASE];
+  const activa = secciones[solapa] || secciones[0];
+  const cats = activa?.categorias || [];
+  const vacia = secciones.every((s) => (s.categorias || []).length === 0);
 
   const cuerpo = (
     <div className="b-menu" style={{ ...tema.v, padding: "22px 22px 34px", minHeight: "100%" }}>
-      {/* El logo va arriba a la derecha, pero en su propia fila: si lo
-          dejáramos flotando encima, un nombre largo y centrado se le
-          metería abajo. Así puede ser grande sin pisar nada. */}
-      {carta.logo && (
-        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-          <img src={carta.logo} alt=""
-            style={{ width: 86, height: 86, objectFit: "contain", display: "block" }} />
-        </div>
-      )}
-
       <Portada carta={carta} tema={tema} />
 
       <SelectorIdioma idiomas={idiomas} actual={idioma} elegir={setIdioma} />
 
-      {cats.length === 0 && (
+      <Solapas secciones={secciones} actual={solapa} elegir={setSolapa}
+        idioma={idioma} bg={tema.v["--m-bg"]} />
+
+      {(secciones.length === 0 || vacia) && (
         <p style={{ textAlign: "center", color: "var(--m-suave)", fontSize: 13, marginTop: 30 }}>
           La carta todavía está vacía.
         </p>
@@ -142,7 +166,7 @@ export default function Carta({ carta, enFono }) {
             return (
               <div key={j}>
                 <div className={`b-linea ${it.disponible ? "" : "b-agotado"}`}>
-                  {/* El nombre del plato no se traduce nunca: es el mismo en las
+                  {/* El nombre del plato no se traduce: es el mismo en las
                       tres cartas. Lo que cambia es la descripción de abajo. */}
                   <span className="n">{it.nombre}</span>
                   <span className={`b-puntos ${tema.puntos ? "" : "sin"}`} />
